@@ -497,3 +497,46 @@ def weight_report(obj):
         tot = tot * (1 - cl[:, 2]) + cl[:, 2]
     return {'vertices': n, 'bones': len(W), 'max_influences': int((A > 1e-4).sum(axis=1).max()), 'unweighted': int((tot < 1e-4).sum()),
             'not_normalised': int((np.abs(tot - 1) > 0.02).sum())}
+
+
+def islands(obj):
+    """Connected mesh islands -> (N,) island id per vertex."""
+    E = np.empty(len(obj.data.edges) * 2, dtype=np.int32)
+    obj.data.edges.foreach_get('vertices', E)
+    E = E.reshape(-1, 2)
+    n = len(obj.data.vertices)
+    parent = np.arange(n)
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+    for a, b in E:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+    return np.array([find(i) for i in range(n)])
+
+
+def rigid_islands(obj, src, bones=None, arm=None):
+    """
+    Hard pieces made of many separate islands (lamellar plates, studs, beads): every island takes ONE set of weights,
+    the source body's weights at the island's centre, so plates ride the body without bending. src: the skinned body.
+    """
+    from .core import duplicate, delete
+    ids = islands(obj)
+    P = verts_of(obj)
+    uniq, inv = np.unique(ids, return_inverse=True)
+    C = np.zeros((len(uniq), 3)); np.add.at(C, inv, P); C /= np.bincount(inv)[:, None]
+    # sample the body weights at the centres with a throwaway point cloud
+    import bpy
+    me = bpy.data.meshes.new('_centres'); me.from_pydata(C.tolist(), [], []); tmp = bpy.data.objects.new('_centres', me)
+    bpy.context.scene.collection.objects.link(tmp)
+    transfer_weights(src, tmp, smooth=0, bones=bones)
+    W = get_weights(tmp)
+    delete(tmp)
+    set_weights(obj, {k: v[inv] for k, v in W.items()})
+    if arm is not None:
+        attach(obj, arm)
+    return obj

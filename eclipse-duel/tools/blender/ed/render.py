@@ -182,20 +182,24 @@ def _save(arr, path):
     bpy.data.images.remove(img)
 
 
-def contact_sheet(paths, out, cols=4, pad=4, bg=(0.04, 0.04, 0.045)):
-    """Compose rendered PNGs (row-major) into one sheet."""
-    ims = [_load(p) for p in paths]
-    rows = (len(ims) + cols - 1) // cols
-    ch = max(i.shape[0] for i in ims)
-    colw = [max((ims[r * cols + c].shape[1] for r in range(rows) if r * cols + c < len(ims)), default=0) for c in range(cols)]
-    W = sum(colw) + pad * (cols + 1); H = rows * ch + pad * (rows + 1)
+def contact_sheet(paths, out, cols=4, pad=4, bg=(0.04, 0.04, 0.045), rows=None):
+    """Compose rendered PNGs into one sheet: `rows` = lists of paths (each row packed left to right), else row-major by cols."""
+    if rows is None:
+        rows = [paths[i:i + cols] for i in range(0, len(paths), cols)]
+    R = [[_load(p) for p in r] for r in rows if r]
+    rh = [max(i.shape[0] for i in r) for r in R]
+    rw = [sum(i.shape[1] for i in r) + pad * (len(r) + 1) for r in R]
+    W = max(rw); H = sum(rh) + pad * (len(R) + 1)
     sheet = np.ones((H, W, 4), dtype=np.float32)
     sheet[:, :, :3] = bg
-    for k, im in enumerate(ims):
-        r, c = divmod(k, cols)
-        x = pad + sum(colw[:c]) + pad * c
-        y = H - (pad + (r + 1) * ch + pad * r)        # image rows are bottom-up
-        sheet[y: y + im.shape[0], x: x + im.shape[1]] = im
+    top = pad
+    for r, h in zip(R, rh):
+        x = pad
+        for im in r:
+            y = H - top - im.shape[0]          # image rows are bottom-up
+            sheet[y: y + im.shape[0], x: x + im.shape[1]] = im
+            x += im.shape[1] + pad
+        top += h + pad
     _save(sheet, out)
     return out
 
@@ -220,7 +224,7 @@ def preview_sheet(label, name='sheet', height=1.95, rig='studio', hide=(), sampl
             o.hide_render = True
     h = height
     tgt = (0, 0, h * 0.5)
-    dist = h * 4.15 * (520 / cell[1]) ** 0 * 1.0
+    dist = h * 2.75 * max(1.0, (cell[1] / cell[0]) / (520 / 300)) ** 0
     paths = []
     light_rig(rig, h)
     for i, yaw in enumerate((0, 35, 90, 180)):
@@ -244,7 +248,7 @@ def preview_sheet(label, name='sheet', height=1.95, rig='studio', hide=(), sampl
         camera((0, 0, tz), d, yaw, pitch, 85)
         row2.append(render_still(os.path.join(tmp, f'{name}_x{k}.png'), cell, samples))
     out = os.path.join(out_dir, name + '.png')
-    contact_sheet(paths + row2, out, cols=4)
+    contact_sheet(None, out, rows=[paths, row2])
     light_rig(rig, h)
     log('preview sheet', os.path.relpath(out, ROOT))
     return out

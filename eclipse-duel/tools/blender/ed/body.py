@@ -55,153 +55,39 @@ def _ell(rig, name, bone, off, radii, coll, tilt=None):
     return ellipsoid(name, rig.pt(bone, off), radii, R, (14, 10), coll)
 
 
-def body(rig, name='body', build=None, voxel=0.006, tris=6500, hands=True, feet=True, coll=None, arm=None, cache=True):
+def body(rig, name='body', build=None, voxel=0.0065, tris=9000, hands=True, feet=True, coll=None, arm=None, cache=True, head=True):
     """
     The base body of a rig, skinned. Returns the mesh object (vertex groups = game bones incl. helper bones; attribute
     ed_region: 0 torso, 1 head / neck, 2 arms, 3 hands, 4 legs, 5 feet).
       build   overrides of DEFAULT_BUILD (mass, chest, waist, hips, arms, legs, neck, muscle, bust, hands)
-      voxel   remesh size (m): 0.006 is plenty under clothes; 0.004 for bare-chested heroes
+      voxel   remesh size (m) before decimation
       tris    triangle budget of the fused body (the two hands add ~1.9k)
       arm     armature from build_armature (needed for skinning; without it the body is returned unskinned)
-    Typical use: drape and skin garments against it, then keep only what shows (keep_regions / cull_hidden).
+    The masses are signed-distance primitives in bone frames joined by smooth unions (ed/sdf.py): muscles flow into each
+    other with fillets. Typical use: drape and skin garments against it, then keep only what shows (keep_regions /
+    cull_hidden).
     """
+    from .sdf import SDF
     B = {**DEFAULT_BUILD, **(build or {})}
-    K = rig.K
-    L = rig.data['lengths']
-    P = rig.P
-    tmp = collection('_body_tmp')
-    parts = []
-    mu = B['muscle']
-    m, n = B['mass'], 24
-
-    # ---- torso: hips -> neck (frames of the centre bones are the model axes) ---------------------------------------------
-    shoulder_z = abs(rig.local('chest', rig.head('upperArmR'))[2])            # shoulder joint offset from the midline
-    sh_y = rig.local('chest', rig.head('upperArmR'))[1]                        # and its height above the chest pivot
-    hip_z = P['hipWidth']
-    wc, ww, wh = B['chest'] * m, B['waist'] * m, B['hips'] * m
-    belly = _bump(0.0, 0.9, 0.03)
-    pec = lambda a: _sum(_bump(0.55, 0.42, a), _bump(-0.55, 0.42, a))          # two pectoral swells either side of the sternum
-    back = lambda a: _sum(_bump(math.pi - 0.6, 0.5, a), _bump(math.pi + 0.6, 0.5, a))   # erector / lat masses with a spine furrow
-    spine_len = P['spine']; chest_len = P['chest']; neck_y = P['neck']
-    rings = [
-        _frame_ring(rig, 'hips', -0.115 * K, 0.060 * K * wh, 0.080 * K * wh, -0.004 * K, 0, n, 2.3),
-        _frame_ring(rig, 'hips', -0.05 * K, 0.103 * K * wh, (hip_z + 0.052 * K) * wh, -0.006 * K, 0, n, 2.4),
-        _frame_ring(rig, 'hips', 0.03 * K, 0.101 * K * wh, (hip_z + 0.046 * K) * wh, -0.002 * K, 0, n, 2.3, back(0.02 * mu)),
-        _frame_ring(rig, 'spine', 0.0, 0.092 * K * ww, 0.131 * K * ww, 0.004 * K, 0, n, 2.2, _sum(belly, back(0.03 * mu))),
-        _frame_ring(rig, 'spine', spine_len * 0.55, 0.098 * K * ww, 0.14 * K * ww, 0.006 * K, 0, n, 2.2, back(0.035 * mu)),
-        _frame_ring(rig, 'chest', 0.0, 0.108 * K * wc, 0.152 * K * wc, 0.008 * K, 0, n, 2.25, _sum(pec(0.02 * mu), back(0.04 * mu))),
-        _frame_ring(rig, 'chest', sh_y * 0.48, 0.116 * K * wc, (shoulder_z - 0.068 * K) * wc + 0.0, 0.011 * K, 0, n, 2.3, _sum(pec(0.055 * mu), back(0.045 * mu))),
-        _frame_ring(rig, 'chest', sh_y * 0.86, 0.104 * K * wc, (shoulder_z - 0.07 * K) * wc, 0.006 * K, 0, n, 2.25, _sum(pec(0.03 * mu), back(0.03 * mu))),
-        _frame_ring(rig, 'chest', sh_y * 1.1, 0.075 * K * m, 0.105 * K * m, -0.004 * K, 0, n, 2.1),
-        _frame_ring(rig, 'neck', 0.01 * K, 0.060 * K * B['neck'], 0.058 * K * B['neck'], 0.0, 0, n, 2.0),
-        _frame_ring(rig, 'neck', 0.06 * K, 0.055 * K * B['neck'], 0.052 * K * B['neck'], 0.004 * K, 0, n, 2.0, _bump(0.0, 0.35, 0.05 * mu)),
-        _frame_ring(rig, 'head', 0.0, 0.056 * K * B['neck'], 0.053 * K * B['neck'], 0.006 * K, 0, n, 2.0),
-        _frame_ring(rig, 'head', 0.05 * K, 0.058 * K, 0.055 * K, 0.008 * K, 0, n, 2.0),
-    ]
-    parts.append(loft('torso', np.array(rings), caps=(True, True), coll=tmp))
-    # ---- head: skull + jaw (hidden under wraps, masks and hats, but they sit on it) ---------------------------------------
-    parts.append(_ell(rig, 'skull', 'head', [0.012 * K, 0.118 * K, 0], [0.101 * K, 0.105 * K, 0.079 * K], tmp))
-    parts.append(_ell(rig, 'jaw', 'head', [0.04 * K, 0.045 * K, 0], [0.068 * K, 0.062 * K, 0.062 * K], tmp))
-    parts.append(_ell(rig, 'chin', 'head', [0.078 * K, 0.012 * K, 0], [0.03 * K, 0.03 * K, 0.036 * K], tmp))
-    parts.append(_ell(rig, 'nose', 'head', [0.108 * K, 0.085 * K, 0], [0.017 * K, 0.026 * K, 0.014 * K], tmp))
-    parts.append(_ell(rig, 'brow', 'head', [0.092 * K, 0.135 * K, 0], [0.02 * K, 0.016 * K, 0.058 * K], tmp))
-    for s, z in (('R', 1.0), ('L', -1.0)):
-        parts.append(_ell(rig, 'ear' + s, 'head', [0.0, 0.092 * K, z * 0.08 * K], [0.016 * K, 0.03 * K, 0.008 * K], tmp))
-    # ---- shoulders, chest and back masses ----------------------------------------------------------------------------------
-    for s, z in (('R', 1.0), ('L', -1.0)):
-        ua, fa, th, sn = 'upperArm' + s, 'foreArm' + s, 'thigh' + s, 'shin' + s
-        a = B['arms'] * m
-        # trapezius: neck -> point of the shoulder; clavicle bar; pectoral; latissimus; shoulder blade
-        parts.append(capsule('trap' + s, rig.pt('neck', [-0.02 * K, 0.035 * K, z * 0.035 * K]), rig.pt(ua, [-0.012 * K, 0.012 * K, -z * 0.055 * K]), 0.044 * K * m, 0.034 * K * m, 12, tmp))
-        parts.append(capsule('clav' + s, rig.pt('chest', [0.076 * K, sh_y * 0.93, z * 0.024 * K]), rig.pt(ua, [0.012 * K, 0.022 * K, -z * 0.03 * K]), 0.013 * K, 0.012 * K, 8, tmp))
-        parts.append(_ell(rig, 'pec' + s, 'chest', [0.078 * K * wc, sh_y * 0.5, z * shoulder_z * 0.43], [0.042 * K * (1 + 0.5 * B['bust']) * mu ** 0.5, 0.07 * K, 0.092 * K], tmp))
-        parts.append(_ell(rig, 'lat' + s, 'chest', [-0.058 * K, sh_y * 0.32, z * shoulder_z * 0.62], [0.05 * K * m, 0.13 * K, 0.06 * K * m], tmp))
-        parts.append(_ell(rig, 'scap' + s, 'chest', [-0.092 * K, sh_y * 0.72, z * shoulder_z * 0.5], [0.028 * K, 0.075 * K, 0.06 * K], tmp))
-        # deltoid cap over the shoulder joint
-        parts.append(_ell(rig, 'delt' + s, ua, [-0.004 * K, -0.045 * K, z * 0.008 * K], [0.062 * K * a, 0.088 * K, 0.058 * K * a], tmp))
-        # upper arm: biceps in front, triceps behind
-        Lu = L['upperArm']
-        ur = [
-            _frame_ring(rig, ua, 0.02, 0.05 * K * a, 0.047 * K * a, 0, 0, 16),
-            _frame_ring(rig, ua, -0.30 * Lu, 0.051 * K * a, 0.046 * K * a, 0.002 * K, 0, 16, 2.0, _sum(_bump(0.0, 0.8, 0.10 * mu), _bump(math.pi, 0.9, 0.08 * mu))),
-            _frame_ring(rig, ua, -0.55 * Lu, 0.048 * K * a, 0.043 * K * a, 0.003 * K, 0, 16, 2.0, _sum(_bump(0.0, 0.8, 0.12 * mu), _bump(math.pi, 0.9, 0.06 * mu))),
-            _frame_ring(rig, ua, -0.82 * Lu, 0.041 * K * a, 0.040 * K * a, 0, 0, 16),
-            _frame_ring(rig, ua, -1.02 * Lu, 0.038 * K * a, 0.041 * K * a, -0.002 * K, 0, 16),
-        ]
-        parts.append(loft('uarm' + s, np.array(ur), caps=(True, True), coll=tmp))
-        # forearm: brachioradialis / extensor belly below the elbow, flat wrist (wide front-back: the palm faces the thigh)
-        Lf = L['foreArm']
-        fr = [
-            _frame_ring(rig, fa, 0.03, 0.037 * K * a, 0.04 * K * a, -0.002 * K, 0, 16),
-            _frame_ring(rig, fa, -0.10 * Lf, 0.043 * K * a, 0.042 * K * a, 0.002 * K, 0, 16, 2.0, _bump(z * 0.9, 0.9, 0.08 * mu)),
-            _frame_ring(rig, fa, -0.30 * Lf, 0.044 * K * a, 0.041 * K * a, 0.003 * K, 0, 16, 2.0, _bump(z * 0.9, 0.9, 0.10 * mu)),
-            _frame_ring(rig, fa, -0.58 * Lf, 0.037 * K * a, 0.034 * K * a, 0.002 * K, 0, 16),
-            _frame_ring(rig, fa, -0.82 * Lf, 0.031 * K * a, 0.026 * K * a, 0.001 * K, 0, 16, 2.2),
-            _frame_ring(rig, fa, -1.0 * Lf, 0.0285 * K * a, 0.0215 * K * a, 0, 0, 16, 2.4),
-            _frame_ring(rig, fa, -1.0 * Lf - 0.03, 0.028 * K * a, 0.02 * K * a, 0, 0, 16, 2.4),
-        ]
-        parts.append(loft('farm' + s, np.array(fr), caps=(True, True), coll=tmp))
-        parts.append(_ell(rig, 'olec' + s, fa, [-0.03 * K, 0.004, 0], [0.02 * K, 0.026 * K, 0.021 * K], tmp))
-        parts.append(_ell(rig, 'ulna' + s, 'hand' + s, [-0.02 * K, 0.012 * K, z * 0.012 * K], [0.011 * K, 0.012 * K, 0.011 * K], tmp))
-        # ---- legs ------------------------------------------------------------------------------------------------------------
-        g = B['legs'] * m
-        Lt, Ls = L['thigh'], L['shin']
-        parts.append(_ell(rig, 'glute' + s, 'hips', [-0.072 * K, -0.05 * K, z * (hip_z - 0.012 * K)], [0.075 * K * g, 0.092 * K, 0.082 * K * g], tmp))
-        tr = [
-            _frame_ring(rig, th, 0.05, 0.088 * K * g, 0.084 * K * g, -0.004 * K, 0, 18),
-            _frame_ring(rig, th, -0.16 * Lt, 0.092 * K * g, 0.087 * K * g, 0.002 * K, 0, 18, 2.0, _bump(0.0, 1.0, 0.05 * mu)),
-            _frame_ring(rig, th, -0.42 * Lt, 0.084 * K * g, 0.078 * K * g, 0.006 * K, 0, 18, 2.0, _sum(_bump(0.0, 0.9, 0.07 * mu), _bump(math.pi, 0.9, 0.05 * mu))),
-            _frame_ring(rig, th, -0.70 * Lt, 0.068 * K * g, 0.064 * K * g, 0.005 * K, 0, 18, 2.0, _bump(-z * 1.2, 0.6, 0.06 * mu)),
-            _frame_ring(rig, th, -0.92 * Lt, 0.057 * K * g, 0.056 * K * g, 0.002 * K, 0, 18),
-            _frame_ring(rig, th, -1.03 * Lt, 0.054 * K * g, 0.054 * K * g, 0.0, 0, 18),
-        ]
-        parts.append(loft('thigh' + s, np.array(tr), caps=(True, True), coll=tmp))
-        sr = [
-            _frame_ring(rig, sn, 0.035, 0.054 * K * g, 0.054 * K * g, 0.002 * K, 0, 16),
-            _frame_ring(rig, sn, -0.10 * Ls, 0.053 * K * g, 0.051 * K * g, -0.004 * K, 0, 16),
-            _frame_ring(rig, sn, -0.30 * Ls, 0.057 * K * g, 0.052 * K * g, -0.013 * K, 0, 16, 2.0, _sum(_bump(math.pi - z * 0.5, 0.7, 0.10 * mu), _bump(math.pi + z * 0.4, 0.7, 0.06 * mu))),
-            _frame_ring(rig, sn, -0.55 * Ls, 0.046 * K * g, 0.042 * K * g, -0.009 * K, 0, 16),
-            _frame_ring(rig, sn, -0.80 * Ls, 0.036 * K * g, 0.033 * K * g, -0.003 * K, 0, 16),
-            _frame_ring(rig, sn, -1.0 * Ls + 0.01, 0.034 * K * g, 0.031 * K * g, 0, 0, 16),
-        ]
-        parts.append(loft('shin' + s, np.array(sr), caps=(True, True), coll=tmp))
-        parts.append(_ell(rig, 'patella' + s, sn, [0.046 * K * g, 0.012 * K, 0], [0.02 * K, 0.034 * K, 0.03 * K], tmp))
-        parts.append(_ell(rig, 'mall' + s, 'foot' + s, [-0.004 * K, 0.004 * K, z * 0.03 * K], [0.014 * K, 0.016 * K, 0.012 * K], tmp))
-        parts.append(_ell(rig, 'malm' + s, 'foot' + s, [0.0, 0.012 * K, -z * 0.03 * K], [0.014 * K, 0.016 * K, 0.011 * K], tmp))
-        if feet:
-            ft, toe = 'foot' + s, 'toe' + s
-            ah, fl, fd, tl, hl = P['ankleHeight'], P['footLength'], P['footDrop'], P['toeLength'], P['heelLength']
-            parts.append(_ell(rig, 'heel' + s, ft, [-hl * 0.45, -ah * 0.55, 0], [hl * 0.75, ah * 0.5, 0.034 * K], tmp))
-            parts.append(capsule('instep' + s, rig.pt(ft, [-0.01, -ah * 0.35, 0]), rig.pt(ft, [fl * 0.92, -fd - 0.004, 0]), 0.036 * K, 0.03 * K, 12, tmp))
-            parts.append(_ell(rig, 'ball' + s, ft, [fl * 0.92, -fd - 0.002, -z * 0.004], [0.04 * K, 0.026 * K, 0.047 * K], tmp))
-            parts.append(_ell(rig, 'toes' + s, toe, [tl * 0.45, -0.006, 0], [tl * 0.6, 0.02 * K, 0.043 * K], tmp))
-    obj = join(parts, name + '_fused')
-    recalc_normals(obj)
-    # ---- fuse: voxel remesh -> smooth -> decimate ------------------------------------------------------------------------------
-    add_mod(obj, 'REMESH', mode='VOXEL', voxel_size=voxel, adaptivity=0.0)
-    apply_mods(obj)
-    smooth_mesh(obj, 0.6, 10)
+    S = body_sdf(rig, B, feet=feet, head=head)
+    obj = _cached_mesh(S, rig, B, voxel, name + '_fused', collection('_body_tmp'), cache)
     V = verts_of(obj)
-    floor = 0.0015
-    V[:, 2] = np.maximum(V[:, 2], floor)                        # flat soles
+    V[:, 2] = np.maximum(V[:, 2], 0.0015)                        # flat soles
     set_verts(obj, V)
-    n0 = len(obj.data.polygons) * 2
+    obj.data.calc_loop_triangles()
+    n0 = len(obj.data.loop_triangles)
     if n0 > tris:
         dm = add_mod(obj, 'DECIMATE', decimate_type='COLLAPSE', ratio=tris / n0)
         dm.use_symmetry = True; dm.symmetry_axis = 'X'
         apply_mods(obj)
-    smooth_mesh(obj, 0.25, 2)
+    smooth_mesh(obj, 0.2, 1)
     shade(obj)
-    log(f'body: fused {n0} -> {len(obj.data.polygons)} faces')
-    # regions (by height / nearest bone) for culling and looks
+    log(f'body: {n0} -> {len(obj.data.polygons)} faces')
     if arm is not None:
         SK.auto_skin(obj, arm, rig, helpers=True, smooth=2)
     _regions(obj, rig)
     if hands:
-        hs = []
-        for s in ('R', 'L'):
-            h = hand(rig, s, name + '_hand' + s, B['hands'], coll=tmp)
-            hs.append(h)
+        hs = [hand(rig, s, name + '_hand' + s, B['hands']) for s in ('R', 'L')]
         obj = join([obj] + hs, name + '_all')
     out = obj
     out.name = name; out.data.name = name
@@ -210,10 +96,138 @@ def body(rig, name='body', build=None, voxel=0.006, tris=6500, hands=True, feet=
     if arm is not None:
         SK.attach(out, arm)
     try:
-        bpy.data.collections.remove(tmp)
+        bpy.data.collections.remove(bpy.data.collections['_body_tmp'])
     except Exception:
         pass
+    out['ed_sdf_eval'] = 1
+    body.last_sdf = S
     return out
+
+
+def _cached_mesh(S, rig, B, voxel, name, coll, cache):
+    """The SDF meshing takes ~1 min: cache the fused mesh in build/blender-cache keyed by rig + build + body.py + sdf.py."""
+    import hashlib, json
+    from .core import ROOT, link
+    h = hashlib.sha1()
+    for p in (os.path.join(os.path.dirname(__file__), 'body.py'), os.path.join(os.path.dirname(__file__), 'sdf.py'), rig.path):
+        with open(p, 'rb') as f:
+            h.update(f.read())
+    h.update(json.dumps([B, voxel], sort_keys=True).encode())
+    path = os.path.join(ROOT, 'build', 'blender-cache', 'body_%s.npz' % h.hexdigest()[:16])
+    if cache and os.path.exists(path):
+        z = np.load(path)
+        F = z['faces'].reshape(-1, 4)
+        return new_mesh(name, z['verts'], [list(f) if f[3] >= 0 else list(f[:3]) for f in F], coll)
+    obj = S.mesh(name, voxel=voxel, coll=coll)
+    if cache:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        F = np.full((len(obj.data.polygons), 4), -1, dtype=np.int32)
+        for i, p in enumerate(obj.data.polygons):
+            vs = list(p.vertices)[:4]
+            F[i, :len(vs)] = vs
+        np.savez_compressed(path, verts=verts_of(obj).astype(np.float32), faces=F.reshape(-1))
+    return obj
+
+
+def body_sdf(rig, B=None, feet=True, head=True):
+    """The anatomical signed-distance model of a rig's body (see body()). Returns an ed.sdf.SDF (eval / project / mesh)."""
+    from .sdf import SDF
+    B = {**DEFAULT_BUILD, **(B or {})}
+    K = rig.K
+    L = rig.data['lengths']
+    P = rig.P
+    m = B['mass']; mu = B['muscle']
+    wc, ww, wh = B['chest'] * m, B['waist'] * m, B['hips'] * m
+    sh = rig.local('chest', rig.head('upperArmR'))          # shoulder joint in the chest frame
+    neck0 = rig.local('chest', rig.head('neck'))
+    k = K
+    S = SDF(rig)
+    S.group('torso', 0.05 * k)
+    # pelvis, abdomen, ribcage, upper chest, back
+    S.ell('torso', 'hips', [-0.006 * k, -0.035 * k, 0], [0.098 * k * wh, 0.115 * k, 0.158 * k * wh])
+    S.ell('torso', 'spine', [0.004 * k, 0.07 * k, 0], [0.098 * k * ww, 0.13 * k, 0.132 * k * ww])
+    S.ell('torso', 'chest', [0.004 * k, 0.085 * k, 0], [0.112 * k * wc, 0.165 * k, 0.15 * k * wc])
+    S.ell('torso', 'chest', [-0.012 * k, sh[1] - 0.025 * k, 0], [0.092 * k * wc, 0.075 * k, (abs(sh[2]) - 0.035 * k) * wc])
+    S.cone('torso', 'chest', [-0.05 * k, -0.1 * k, 0], [-0.06 * k, sh[1] - 0.03 * k, 0], 0.07 * k, 0.07 * k, squash=[0.8, 1, 1.4])   # back muscles
+    # pectorals (flat plates angled down-out), abdominal wall, obliques
+    for z in (1.0, -1.0):
+        ang = math.radians(-14 * z)
+        rot = np.array([[1, 0, 0], [0, math.cos(ang), -math.sin(ang)], [0, math.sin(ang), math.cos(ang)]])
+        S.ell('torso', 'chest', [0.072 * k * wc, sh[1] - 0.085 * k, z * 0.068 * k], [0.05 * k * (1 + 0.6 * B['bust']) * mu ** 0.5, 0.06 * k, 0.088 * k], rot=rot, k=0.03 * k)
+        S.ell('torso', 'chest', [-0.035 * k, 0.07 * k, z * 0.11 * k * wc], [0.06 * k, 0.12 * k, 0.05 * k * m], k=0.04 * k)     # latissimus
+        S.ell('torso', 'spine', [0.0, 0.0, z * 0.11 * k * ww], [0.07 * k, 0.09 * k, 0.04 * k], k=0.04 * k)                     # obliques / flank
+        S.ell('torso', 'hips', [-0.068 * k, -0.085 * k, z * 0.07 * k * wh], [0.07 * k, 0.085 * k, 0.08 * k], k=0.04 * k)        # glutes
+        S.cone('torso', 'chest', [neck0[0] - 0.03 * k, neck0[1] - 0.01 * k, z * 0.03 * k], [sh[0] - 0.02 * k, sh[1] + 0.015 * k, z * (abs(sh[2]) - 0.045 * k)],
+               0.05 * k * m, 0.032 * k * m, k=0.04 * k)                                                                              # trapezius
+        S.cone('torso', 'chest', [neck0[0] + 0.07 * k, neck0[1] - 0.03 * k, z * 0.02 * k], [sh[0] + 0.03 * k, sh[1] + 0.02 * k, z * (abs(sh[2]) - 0.03 * k)],
+               0.012 * k, 0.012 * k, k=0.02 * k)                                                                                     # clavicle
+    S.ell('torso', 'spine', [0.07 * k * ww, 0.04 * k, 0], [0.045 * k, 0.12 * k, 0.085 * k], k=0.04 * k)                             # rectus abdominis
+    S.cut('torso', 'chest', 'cone', [0.125 * k, 0.04 * k, 0], [0.125 * k, sh[1] - 0.07 * k, 0], 0.012 * k, 0.012 * k, k=0.02 * k)  # sternal furrow
+    S.cut('torso', 'chest', 'cone', [-0.115 * k, -0.12 * k, 0], [-0.105 * k, sh[1] - 0.04 * k, 0], 0.014 * k, 0.012 * k, k=0.025 * k)   # spine furrow
+    # neck
+    S.group('neck', 0.03 * k).blend('torso', 'neck', 0.045 * k)
+    nk = B['neck']
+    S.cone('neck', 'neck', [-0.004 * k, -0.015 * k, 0], [0.008 * k, 0.1 * k, 0], 0.06 * k * nk, 0.052 * k * nk, squash=[0.95, 1, 1.0])
+    for z in (1.0, -1.0):   # sternocleidomastoid
+        S.cone('neck', 'neck', [-0.012 * k, 0.085 * k, z * 0.042 * k], [0.05 * k, -0.01 * k, z * 0.022 * k], 0.016 * k * nk, 0.014 * k * nk, k=0.015 * k)
+    if head:
+        S.group('head', 0.02 * k).blend('neck', 'head', 0.03 * k).blend('torso', 'head', 0.0)
+        S.ell('head', 'head', [-0.006 * k, 0.122 * k, 0], [0.098 * k, 0.104 * k, 0.078 * k])                   # cranium
+        S.ell('head', 'head', [0.045 * k, 0.065 * k, 0], [0.06 * k, 0.07 * k, 0.058 * k], k=0.03 * k)          # face mass
+        S.ell('head', 'head', [0.058 * k, 0.018 * k, 0], [0.04 * k, 0.03 * k, 0.05 * k], k=0.02 * k)           # jaw
+        S.ell('head', 'head', [0.083 * k, 0.012 * k, 0], [0.022 * k, 0.025 * k, 0.026 * k], k=0.012 * k)       # chin
+        S.ell('head', 'head', [0.087 * k, 0.137 * k, 0], [0.02 * k, 0.016 * k, 0.058 * k], k=0.014 * k)        # brow ridge
+        S.cone('head', 'head', [0.101 * k, 0.118 * k, 0], [0.113 * k, 0.076 * k, 0], 0.007 * k, 0.0115 * k, k=0.01 * k)   # nose
+        S.ell('head', 'head', [0.098 * k, 0.045 * k, 0], [0.012 * k, 0.012 * k, 0.026 * k], k=0.01 * k)       # lips
+        for z in (1.0, -1.0):
+            S.ell('head', 'head', [0.065 * k, 0.098 * k, z * 0.047 * k], [0.026 * k, 0.018 * k, 0.026 * k], k=0.014 * k)   # cheekbones
+            S.ell('head', 'head', [-0.002 * k, 0.098 * k, z * 0.077 * k], [0.016 * k, 0.028 * k, 0.009 * k], k=0.006 * k)  # ears
+            S.cut('head', 'head', 'ell', [0.106 * k, 0.117 * k, z * 0.034 * k], [0.011 * k, 0.0105 * k, 0.017 * k], k=0.01 * k)   # eye sockets
+        S.group('eyes', 0.003 * k).blend('head', 'eyes', 0.004 * k)
+        for z in (1.0, -1.0):
+            S.ell('eyes', 'head', [0.09 * k, 0.116 * k, z * 0.034 * k], [0.0125 * k, 0.0125 * k, 0.0125 * k])                 # eyeballs
+    # arms
+    a = B['arms'] * m
+    for s, z in (('R', 1.0), ('L', -1.0)):
+        ua, fa, hb = 'upperArm' + s, 'foreArm' + s, 'hand' + s
+        Lu, Lf = L['upperArm'], L['foreArm']
+        g = 'arm' + s
+        S.group(g, 0.022 * k).blend('torso', g, 0.035 * k)
+        S.chain(g, ua, [(0.01, 0.046 * k * a), (-0.4 * Lu, 0.043 * k * a), (-0.98 * Lu, 0.036 * k * a)])
+        S.ell(g, ua, [-0.004 * k, -0.045 * k, 0.004 * z * k], [0.058 * k * a, 0.09 * k, 0.056 * k * a], k=0.03 * k)          # deltoid
+        S.ell(g, ua, [0.022 * k, -0.52 * Lu, 0], [0.032 * k * a * mu ** 0.5, 0.085 * k, 0.034 * k * a], k=0.02 * k)            # biceps
+        S.ell(g, ua, [-0.022 * k, -0.42 * Lu, 0], [0.033 * k * a * mu ** 0.5, 0.1 * k, 0.037 * k * a], k=0.02 * k)            # triceps
+        S.ell(g, fa, [-0.022 * k, 0.004 * k, 0], [0.018 * k, 0.024 * k, 0.019 * k], k=0.012 * k)                              # olecranon
+        S.chain(g, fa, [(0.0, 0.037 * k * a), (-0.3 * Lf, 0.036 * k * a), (-0.97 * Lf, 0.0235 * k * a)], squash=[1.0, 1, 0.82])
+        S.ell(g, fa, [0.012 * k, -0.2 * Lf, z * 0.012 * k], [0.03 * k * a, 0.085 * k, 0.03 * k * a], k=0.02 * k)            # brachioradialis / flexors
+        S.ell(g, fa, [-0.012 * k, -0.24 * Lf, -z * 0.01 * k], [0.026 * k * a, 0.09 * k, 0.027 * k * a], k=0.02 * k)          # extensors
+        S.cone(g, fa, [0, -0.9 * Lf, 0], [0, -1.0 * Lf - 0.012 * k, 0], 0.022 * k * a, 0.021 * k * a, squash=[1.25, 1, 0.8], k=0.012 * k)  # wrist
+    # legs
+    gl = B['legs'] * m
+    for s, z in (('R', 1.0), ('L', -1.0)):
+        th, sn, ft, toe = 'thigh' + s, 'shin' + s, 'foot' + s, 'toe' + s
+        Lt, Ls = L['thigh'], L['shin']
+        g = 'leg' + s
+        S.group(g, 0.025 * k).blend('torso', g, 0.05 * k)
+        S.chain(g, th, [(0.04, 0.084 * k * gl), (-0.35 * Lt, 0.074 * k * gl), (-0.98 * Lt, 0.05 * k * gl)])
+        S.ell(g, th, [0.03 * k, -0.42 * Lt, 0.004 * z * k], [0.052 * k * gl, 0.19 * k, 0.06 * k * gl], k=0.03 * k)          # quadriceps
+        S.ell(g, th, [0.022 * k, -0.8 * Lt, -z * 0.03 * k], [0.035 * k * gl, 0.065 * k, 0.034 * k * gl], k=0.02 * k)        # vastus medialis
+        S.ell(g, th, [0.012 * k, -0.62 * Lt, z * 0.04 * k], [0.034 * k * gl, 0.13 * k, 0.03 * k * gl], k=0.025 * k)         # vastus lateralis
+        S.ell(g, th, [-0.03 * k, -0.45 * Lt, 0], [0.05 * k * gl, 0.18 * k, 0.055 * k * gl], k=0.03 * k)                     # hamstrings
+        S.ell(g, sn, [0.04 * k, 0.004 * k, 0], [0.02 * k, 0.032 * k, 0.027 * k], k=0.012 * k)                               # patella
+        S.chain(g, sn, [(0.0, 0.05 * k * gl), (-0.25 * Ls, 0.043 * k * gl), (-0.97 * Ls, 0.029 * k * gl)])
+        S.ell(g, sn, [-0.03 * k, -0.27 * Ls, z * 0.012 * k], [0.042 * k * gl, 0.11 * k, 0.034 * k * gl], k=0.025 * k)        # calf (outer)
+        S.ell(g, sn, [-0.028 * k, -0.24 * Ls, -z * 0.016 * k], [0.04 * k * gl, 0.12 * k, 0.034 * k * gl], k=0.025 * k)      # calf (inner)
+        S.cone(g, sn, [0.028 * k, -0.05 * Ls, 0], [0.024 * k, -0.85 * Ls, 0], 0.016 * k, 0.012 * k, k=0.02 * k)             # tibia ridge
+        if feet:
+            ah, fl, fd, tl, hl = P['ankleHeight'], P['footLength'], P['footDrop'], P['toeLength'], P['heelLength']
+            S.ell(g, ft, [0.0, 0.004 * k, z * 0.028 * k], [0.013 * k, 0.015 * k, 0.012 * k], k=0.01 * k)                     # malleoli
+            S.ell(g, ft, [0.0, 0.012 * k, -z * 0.027 * k], [0.013 * k, 0.015 * k, 0.011 * k], k=0.01 * k)
+            S.ell(g, ft, [-hl * 0.42, -ah * 0.55, 0], [hl * 0.62, ah * 0.48, 0.033 * k], k=0.02 * k)                          # heel
+            S.cone(g, ft, [0.0, -ah * 0.2, 0], [fl * 0.88, -fd - 0.002 * k, -z * 0.003 * k], 0.033 * k, 0.026 * k, squash=[1, 0.75, 1.3], k=0.02 * k)  # instep
+            S.ell(g, ft, [fl * 0.88, -fd + 0.002 * k, -z * 0.004 * k], [0.035 * k, 0.024 * k, 0.045 * k], k=0.015 * k)        # ball
+            S.ell(g, toe, [tl * 0.42, -0.003 * k, 0], [tl * 0.6, 0.017 * k, 0.041 * k], k=0.012 * k)                         # toes
+    return S
 
 
 def _regions(obj, rig):

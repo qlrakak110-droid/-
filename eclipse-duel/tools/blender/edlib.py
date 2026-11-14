@@ -16,14 +16,13 @@ _sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
 from ed.core import *          # noqa: F401,F403,E402
 from ed.core import (Rig, G2B, B2G, HERE, ROOT)   # noqa: F401,E402
 from ed.model import *         # noqa: F401,F403,E402
-from ed.body import (body, hand, keep_regions, cull_hidden, DEFAULT_BUILD)   # noqa: F401,E402
+from ed.body import (body, body_sdf, hand, keep_regions, cull_hidden, DEFAULT_BUILD)   # noqa: F401,E402
+from ed.sdf import SDF, smin, smax   # noqa: F401,E402   # noqa: F401,E402
 from ed import skin            # noqa: F401,E402
 from ed.skin import (auto_skin, transfer_weights, along_chain, by_rows, define_panel, bind_panel, mirror_check, weight_report, attach, smooth_weights,
-                     limit_normalize, station_weights, chain_weights)   # noqa: F401,E402
+                     limit_normalize, station_weights, chain_weights, rigid_islands, islands)   # noqa: F401,E402
 from ed.render import (preview_sheet, render_view, render_still, light_rig, camera, contact_sheet)   # noqa: F401,E402
 from ed.export import export_asset   # noqa: F401,E402
-try:
-    from ed.cloth import *     # noqa: F401,F403,E402
-    from ed.bake import *      # noqa: F401,F403,E402
-except ImportError as _e:      # modules under construction
-    print('[edlib]', _e)
+from ed.cloth import *         # noqa: F401,F403,E402
+from ed.bake import *          # noqa: F401,F403,E402
+from ed.core import pose_armature   # noqa: F401,E402

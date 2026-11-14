@@ -1,3 +1,6 @@
 node_modules/
 build/
 shots/
+
+__pycache__/
+*.pyc

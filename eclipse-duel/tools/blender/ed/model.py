@@ -265,8 +265,9 @@ def box(name, size=(0.1, 0.1, 0.1), center=(0, 0, 0), bevel_w=0.0, segs=2, coll=
 
 # ---- edges, thickness, subdivision ------------------------------------------------------------------------------------------
 
-def solidify(obj, thickness=0.004, offset=-1.0, rim=True, even=True):
-    """Give a sheet thickness (applied). offset -1 grows inward, +1 outward, 0 both ways."""
+def solidify(obj, thickness=0.004, offset=-1.0, rim=True, even=False):
+    """Give a sheet thickness (applied). offset -1 grows inward, +1 outward, 0 both ways. even=True (even thickness)
+    throws long spikes out of the sharp folds of draped cloth: keep it off for cloth."""
     add_mod(obj, 'SOLIDIFY', thickness=thickness, offset=offset, use_rim=rim, use_even_offset=even)
     return apply_mods(obj)
 
@@ -377,6 +378,8 @@ def surface_normal(S, u, v, eps=1e-3):
     """Numeric normal of a parametric surface S(u, v) -> (3,) (u across, v along)."""
     p = np.asarray(S(u, v)); du = np.asarray(S(u + eps, v)) - np.asarray(S(u - eps, v)); dv = np.asarray(S(u, v + eps)) - np.asarray(S(u, v - eps))
     n = np.cross(du, dv)
+    if getattr(S, 'flip', False):        # grid_surface(): keep the normal outward whatever the parameter orientation
+        n = -n
     return p, normalize(n), normalize(du), normalize(dv)
 
 
@@ -504,14 +507,15 @@ def weave_relief(obj, nu, nv, amount=0.0012, pattern=(2, 2), uv='ed_uv'):
 
 
 def lamellar(name, S, rows, cols, plate_w=0.024, plate_h=0.05, thick=0.0026, overlap=0.32, row_overlap=0.3, dome=0.0016, u_range=(0, 1), v_range=(0, 1),
-             lace=True, lace_r=0.0011, stagger=True, tilt=0.12, seed=3, coll=None):
+             lace=True, lace_r=0.0011, stagger=True, tilt=0.12, seed=3, closed=False, coll=None):
     """
     Lamellar (찰갑) armour: `rows` rows of `cols` small plates laid on a parametric surface S(u, v) (u across, v DOWN the
     piece). Plates overlap sideways (each over its right neighbour) and every row overlaps the row below; each plate is a
     rounded, slightly domed lame with a bevelled rim (28 triangles). lace: the suspension lacing, two cords per plate
     column knotted between rows, and a horizontal binding cord per row.
     Returns (plates, lacing) objects; per-vertex ed_cav carries the overlap shadows, ed_col a per-plate tone.
-    obj['ed_cells'] on the plates = [rows, cols] (bind rows to bones with skin.by_rows()).
+    obj['ed_cells'] on the plates = [rows, cols] (bind rows to bones with skin.by_rows(), or skin.rigid_islands()).
+    closed: S is periodic in u (a full cuirass): plates wrap around the seam instead of clamping to it.
     """
     rng = np.random.RandomState(seed)
     V, F, CAV, COL, ROW = [], [], [], [], []
@@ -527,12 +531,16 @@ def lamellar(name, S, rows, cols, plate_w=0.024, plate_h=0.05, thick=0.0026, ove
             u = u_range[0] + (c + 0.5 + (0.5 if (stagger and r % 2) else 0.0)) * du
             if u > u_range[1] + 1e-9 and not stagger:
                 continue
-            p0, n0, tu, tv = surface_normal(S, min(max(u, u_range[0] + 1e-4), u_range[1] - 1e-4), v_top + dv * 0.5)
-            pitch_u = np.linalg.norm(np.asarray(S(min(u + du * 0.5, 1.0), v_top + dv * 0.5)) - np.asarray(S(max(u - du * 0.5, 0.0), v_top + dv * 0.5)))
+            if closed:
+                u = u % 1.0
+            uc = u if closed else min(max(u, u_range[0] + 1e-4), u_range[1] - 1e-4)
+            p0, n0, tu, tv = surface_normal(S, uc, v_top + dv * 0.5)
+            ua, ub = (u + du * 0.5, u - du * 0.5) if closed else (min(u + du * 0.5, 1.0), max(u - du * 0.5, 0.0))
+            pitch_u = np.linalg.norm(np.asarray(S(ua, v_top + dv * 0.5)) - np.asarray(S(ub, v_top + dv * 0.5)))
             pitch_v = np.linalg.norm(np.asarray(S(u, min(v_top + dv, 1.0))) - np.asarray(S(u, max(v_top, 0.0))))
             hw = 0.5 * pitch_u * (1 + overlap)
             hh = pitch_v * (1 + row_overlap)
-            top, _, _, _ = surface_normal(S, min(max(u, u_range[0] + 1e-4), u_range[1] - 1e-4), v_top)
+            top, _, _, _ = surface_normal(S, uc, v_top)
             tone = 0.82 + 0.3 * rng.rand()
             # the plate tilts: its lower edge rides on the row below, one side rides on its neighbour
             base = len(V)
@@ -569,7 +577,7 @@ def lamellar(name, S, rows, cols, plate_w=0.024, plate_h=0.05, thick=0.0026, ove
             pts = []
             for k2 in range(cols * 2 + 1):
                 u = u_range[0] + k2 / (cols * 2) * (u_range[1] - u_range[0])
-                p, n, tu2, tv2 = surface_normal(S, min(max(u, u_range[0] + 1e-4), u_range[1] - 1e-4), v_top + dv * 0.62)
+                p, n, tu2, tv2 = surface_normal(S, u if closed else min(max(u, u_range[0] + 1e-4), u_range[1] - 1e-4), v_top + dv * 0.62)
                 pts.append(p + n * (thick * 3.0 + dome + lace_r * (1.0 + 0.6 * math.sin(k2 * math.pi))))
             _cord(LV, LF, np.array(pts), lace_r * 1.15)
     plates = new_mesh(name, np.array(V), F, coll)
@@ -753,3 +761,34 @@ def lacing(name, left, right, radius=0.0012, cross=True, sag=0.0, coll=None):
     obj = new_mesh(name, np.array(V), F, coll)
     recalc_normals(obj)
     return obj
+
+
+def grid_surface(obj, offset=0.0, u_wrap=None):
+    """
+    A parametric surface S(u, v) over a lofted object's vertex grid (obj['ed_grid'] = [N, R]; u around / across 0..1,
+    v along 0..1), pushed `offset` metres along the grid normal: lay lamellar rows, weaves, belts or embroidery on top of a
+    draped garment. u_wrap: the grid is a closed ring in u (default: from the loft).
+    """
+    N, R = obj['ed_grid']
+    G = verts_of(obj)[: N * R].reshape(R, N, 3)
+    closed = True if u_wrap is None else u_wrap
+    if closed:
+        G = np.concatenate([G, G[:, :1]], axis=1)
+    Rr, Nn = G.shape[0], G.shape[1]
+    # grid normals
+    du = np.gradient(G, axis=1); dv = np.gradient(G, axis=0)
+    Nrm = normalize(np.cross(du, dv))
+    flip = np.mean(np.einsum('ijk,ijk->ij', Nrm, G - G.reshape(-1, 3).mean(axis=0))) < 0
+    if flip:
+        Nrm = -Nrm
+
+    def S(u, v):
+        x = (u % 1.0 if closed else min(max(u, 0.0), 1.0)) * (Nn - 1)
+        y = min(max(v, 0.0), 1.0) * (Rr - 1)
+        i = min(int(x), Nn - 2); j = min(int(y), Rr - 2)
+        fx, fy = x - i, y - j
+        p = (G[j, i] * (1 - fx) + G[j, i + 1] * fx) * (1 - fy) + (G[j + 1, i] * (1 - fx) + G[j + 1, i + 1] * fx) * fy
+        n = (Nrm[j, i] * (1 - fx) + Nrm[j, i + 1] * fx) * (1 - fy) + (Nrm[j + 1, i] * (1 - fx) + Nrm[j + 1, i + 1] * fx) * fy
+        return p + normalize(n) * offset
+    S.flip = bool(flip)
+    return S
