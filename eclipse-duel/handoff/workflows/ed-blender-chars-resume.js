@@ -37,6 +37,13 @@ DELIVER:
 6. tools/blender/README.md: how to run, the library reference with a minimal hero script skeleton (the three hero artists start from it the minute you finish), conventions (units, axes, naming of parts and material slots, how to bind to cloth / spring bones, how to preview, the budgets), troubleshooting notes from what bit you.
 Return the report; api = the hero-script skeleton and the list of edlib helpers with signatures.`, { label: 'blender-pipeline', phase: 'Pipeline', schema: REPORT, model: 'opus' })
 
+const SAFE = `
+SITUATION + MEMORY RULES (important): this VM (4 cores, 15 GB shared by 2-3 agents) has already been killed twice mid-job, most likely by a Blender run exhausting memory; each time the agents lost their context but the files on disk survived. Therefore:
+- Work may already exist for your task from an interrupted predecessor (scripts under tools/blender/heroes/, assets/chars/<hero>/, edits in the hero's design.js, captures under shots/blender/<hero>/). Inspect it first, keep what is sound and continue from it instead of starting over.
+- Run Blender ONLY through the capped runner: tools/blender/bl.sh <script.py> [args] (it applies a memory cap; a build that hits it dies with MemoryError / a crash instead of freezing the machine — then lower your subdivision levels, drape resolution or bake sizes and retry). Never run two Blender processes at the same time yourself; never launch more than one Chromium capture at a time.
+- Keep peak memory low: subdivision level <= 3 on large meshes (<= 4 only on small parts), cloth-drape grids <= ~12k vertices, bake maps <= 1024 px, apply / delete high-poly intermediates as soon as they are baked, bpy.ops.outliner.orphans_purge after heavy steps.
+- Save progress to disk often (scripts first, then assets, then design.js), so a restart costs little.`
+
 phase('Heroes')
 const PIPE = JSON.stringify({ summary: pipe && pipe.summary, api: pipe && pipe.api, issues: pipe && pipe.issues }).slice(0, 14000)
 const HEROES = [
@@ -45,6 +52,8 @@ const HEROES = [
   { id: 'vorn', own: 'tools/blender/heroes/vorn*.py, assets/chars/vorn/**, src/fighters/vorn/design.js, src/fighters/vorn/kit.js (and new art files of your own in src/fighters/vorn/ other than index.js, present.js, fx*.js, moves.js, clips/**), src/fighters/vorn/README.md', brief: '뇌진천 雷震天, the Heaven-Thunder Spear (천뢰신창) of Thundercloud Keep: tall, disciplined, a soldier-monk bearing. A storm-violet and ink-black robe under a dark lacquered lamellar (찰갑) chest and left-shoulder piece laced in old gold, a waist guard, bound sleeves, tall wrapped boots; a deep conical bamboo hat with real weave and a cloth face wrap, a long queue down the back; old-gold thunder-pattern embroidery that can crawl with violet-white light; the 뇌룡창 spear: leaf head with a midrib, a small crossguard, a horsehair tassel on a spring chain below the head, lacquered shaft with bronze bands and butt cap — EXACTLY the current length, grips and sockets. Start from the pipeline pilot (it was built on your rig) and take it to final quality.' },
 ]
 const heroes = await parallel(HEROES.map((H) => () => agent(`${HEAD}
+
+${SAFE}
 
 The pipeline lead finished the Blender asset pipeline and a pilot. Read tools/blender/README.md fully. Their report and API: ${PIPE}
 YOUR ROLE: hero artist for '${H.id}': ${H.brief}
@@ -60,6 +69,8 @@ Return the report; keyCaptures = Blender high-poly sheet, in-engine turntable, b
 
 phase('Review')
 const review = await agent(`${HEAD}
+
+${SAFE}
 
 YOUR ROLE: character art director with fresh eyes. The three heroes were just rebuilt through the Blender pipeline. Reports: ${JSON.stringify({ pipe, heroes }).slice(0, 34000)}
 You may edit tools/blender/** , assets/** (regenerate through the scripts), src/char/assets.js, src/labs/asset.js, src/labs/art.js and the heroes' art files (src/fighters/{kael,iska,vorn}/design.js, kit*.js, tailor.js, README.md), and src/char/materials.js + src/char/kit/** if ${SP}/MATERIALS_FREE exists.
